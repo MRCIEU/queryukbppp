@@ -58,7 +58,7 @@ get_snpid_from_chrpos <- function(chrpos, build=c("19", "38")[1], map_files=get_
     l <- list()
     for(ch in unique(chrpos$chr)) {
         message(ch)
-        data.table::fwrite(subset(chrpos, chr == ch)$pos, file=file.path(td, "pos"), row.names=FALSE, col.names=FALSE, quote=FALSE)
+        utils::write.table(subset(chrpos, chr == ch)$pos, file=file.path(td, "pos"), row.names=FALSE, col.names=FALSE, quote=FALSE)
         cmd <- glue::glue("zgrep -wf {file.path(td, 'pos')} {grep(paste0('chr', ch), map_files, value=TRUE)} > {file.path(td, 'out')}")
         system(cmd)
         l[[ch]] <- data.table::fread(file.path(td, 'out'))
@@ -87,7 +87,7 @@ get_snpid_from_chrpos <- function(chrpos, build=c("19", "38")[1], map_files=get_
 #' @export
 get_snpid_from_rsid <- function(rsid, map_files=get_mapfiles()) {
     td <- tempdir(check=TRUE)
-    data.table::fwrite(rsid, file=file.path(td, "rsid"), row.names=FALSE, col.names=FALSE, quote=FALSE)
+    utils::write.table(rsid, file=file.path(td, "rsid"), row.names=FALSE, col.names=FALSE, quote=FALSE)
     map_files <- paste0()
     cmd <- glue::glue("zgrep -wf {file.path(td, 'rsid')} {paste(map_files, collapse=' ')} > {file.path(td, 'out')}")
     system(cmd)
@@ -104,7 +104,7 @@ get_snpid_from_rsid <- function(rsid, map_files=get_mapfiles()) {
 lookup_txt <- function(fn, pos) {
     tf <- tempfile()
     tf2 <- tempfile()
-    data.table::fwrite(unique(pos), file=tf, row.names=FALSE, col.names=FALSE, quote=FALSE)
+    utils::write.table(unique(pos), file=tf, row.names=FALSE, col.names=FALSE, quote=FALSE)
     cmd <- glue::glue("zgrep -wf {tf} {paste(fn, collapse=' ')} > {tf2}")
     system(cmd)
     data.table::fread(tf2)
