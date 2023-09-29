@@ -1,3 +1,34 @@
+#' Standardise data to have alphabetical effect allele ordering and variant id
+#' 
+#' Generates variant id chr:pos_a1_a2 with a1 and a2 oriented alphabetically
+#' flips eaf and beta where necessary
+#' 
+#' @param d data frame
+#' @param ea effect allele column name
+#' @param oa other allele column name
+#' @param eaf effect allele frequency column name
+#' @param beta beta column name
+#' @param chr chr column name
+#' @param pos pos column name
+#' 
+#' @return data frame
+#' @export
+standardise <- function(d, ea="ea", oa="oa", eaf="eaf", beta="beta", chr="chr", pos="pos") {
+    toflip <- d[[ea]] > d[[oa]]
+    if(!is.null(d[[eaf]])) {
+        d[[eaf]][toflip] <- 1 - d[[eaf]][toflip]
+    }
+    if(!is.null(d[[beta]])) {
+        d[[beta]][toflip] <- d[[beta]][toflip] * -1
+    }
+    temp <- d[[oa]][toflip]
+    d[[oa]][toflip] <- d[[ea]][toflip]
+    d[[ea]][toflip] <- temp
+    d[["varid"]] <- paste0(d[[chr]], ":", d[[pos]], "_", d[[ea]], "_", d[[oa]])
+    d
+}
+
+
 #' Query UKB-PPP downloaded files
 #' 
 #' The files are arranged according to https://www.synapse.org/#!Synapse:syn51364943/files/.
@@ -15,29 +46,29 @@
 #' @export
 query_pgwas <- function(tarfile, variants) {
     td <- tempdir()
-    cmd <- glue::glue("tar xvf {tarfile} -C {td}")
+    cmd <- glue::glue("tar xvf '{tarfile}' -C '{td}'")
     system(cmd)
     fd <- file.path(td, gsub(".tar", "", basename(tarfile)))
-    fnut <- list.files(fd, full.names=TRUE)
+    fnut <- list.files(fd, full.names = TRUE)
     l <- list()
-    for(ch in unique(variants$chr))
-    {
+    for (ch in unique(variants$chr)) {
         message(ch)
-        fn <- grep(paste0("chr", ch, "_"), fnut, value=T)
-        if(!file.exists(fn))
-        {
+        fn <- grep(paste0("chr", ch, "_"), fnut, value = T)
+        if (!file.exists(fn)) {
             message("missing")
             next
         }
-        d <- lookup_txt(fn, subset(variants, chr == ch)$ID)
-        l[[ch]] <- d
+        x <- fread(fn)
+        l[[ch]] <- subset(x, ID %in% variants$ID)
     }
     l <- bind_rows(l)
     con <- gzfile(fn)
-    names(l) <- scan(con, nlines=1, what=character())
+    names(l) <- scan(con, nlines = 1, what = character())
     close(con)
-    l$tarfile <- tarfile
-    system(glue::glue("rm -r {td}"))
+    system(glue::glue("rm -r {fd}"))
+    l <- inner_join(l, v, by="ID") %>%
+        filter(!duplicated(ID)) %>%
+        standardise(pos="POS19", oa="ALLELE0", ea="ALLELE1", eaf="A1FREQ", beta="BETA")
     return(l)
 }
 
@@ -58,21 +89,19 @@ get_snpid_from_chrpos <- function(chrpos, build=c("19", "38")[1], map_files=get_
     l <- list()
     for(ch in unique(chrpos$chr)) {
         message(ch)
-        utils::write.table(subset(chrpos, chr == ch)$pos, file=file.path(td, "pos"), row.names=FALSE, col.names=FALSE, quote=FALSE)
-        cmd <- glue::glue("zgrep -wf {file.path(td, 'pos')} {grep(paste0('chr', ch), map_files, value=TRUE)} > {file.path(td, 'out')}")
-        system(cmd)
-        l[[ch]] <- data.table::fread(file.path(td, 'out'))
+        # utils::write.table(subset(chrpos, chr == ch)$pos, file=file.path(td, "pos"), row.names=FALSE, col.names=FALSE, quote=FALSE)
+        # cmd <- glue::glue("zgrep -wf {file.path(td, 'pos')} '{grep(paste0('chr', ch), map_files, value=TRUE)}' > {file.path(td, 'out')}")
+        # system(cmd)
+        # l[[ch]] <- data.table::fread(file.path(td, 'out'))
+        fn <- grep(paste0('chr', ch, "_"), map_files, value=TRUE)
+        message(fn)
+        stopifnot(file.exists(fn))
+        x <- fread(fn)
+        x$chr <- ch
+        l[[ch]] <- subset(x, POS19 %in% subset(chrpos, chr == ch)$pos)
+        
     }
     a <- bind_rows(l)
-    names(a) <- c("ID", "REF", "ALT", "rsid", "POS19", "POS38")
-    if(nrow(a) > 0) {
-        a$chr <- strsplit(a$ID, ":") %>% sapply(., \(x) x[1])
-        if(build == "19") {
-            a <- subset(a, paste(chr, POS19) %in% paste(chrpos$chr, chrpos$pos))
-        } else {
-            a <- subset(a, paste(chr, POS38) %in% paste(chrpos$chr, chrpos$pos))
-        }
-    }
     return(a)    
 }
 

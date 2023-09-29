@@ -4,12 +4,12 @@
 \alias{get_snpid_from_rsid}
 \title{Get variant information based on rsid lookup}
 \usage{
-get_snpid_from_rsid(map_files = get_mapfiles(), rsid)
+get_snpid_from_rsid(rsid, map_files = get_mapfiles())
 }
 \arguments{
 \item{rsid}{vector of variants by rsid}
 
-\item{map_dir}{path to the \code{Metadata/SNP RSID maps} directory}
+\item{map_files}{path to the \code{Metadata/SNP RSID maps} directory}
 }
 \value{
 data frame
